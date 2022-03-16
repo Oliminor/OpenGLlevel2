@@ -31,7 +31,7 @@ GLuint bufQuad;
 C3dglSkyBox skybox;
 
 // Water specific variables
-float waterLevel = 6.6f;
+float waterLevel = 1.0f;
 
 // Terrain
 C3dglTerrain terrain, water;
@@ -43,11 +43,12 @@ GLuint idTexCube;
 GLuint idTexShadowMap;
 
 // Particle System Params
-const float PERIOD = 0.00075f;
-const float LIFETIME = 6;
-const int NPARTICLES = (int)(LIFETIME / PERIOD);
+const float PERIOD = 0.01f;
+const float LIFETIME = 20;
+const int NPARTICLES = (int)(LIFETIME / PERIOD) * 100;
 GLuint idBufferVelocity;
 GLuint idBufferStartTime;
+GLuint idBufferInitialPos;
 GLuint idTexParticle;
 
 
@@ -246,7 +247,7 @@ bool init()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bm.GetWidth(), bm.GetHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, bm.GetBits());
 
 	// Smoke Particle
-	bm.Load("models/smoke.png", GL_RGBA);
+	bm.Load("models/rain.png", GL_RGBA);
 	if (!bm.GetBits()) return false;
 
 	glActiveTexture(GL_TEXTURE0);
@@ -383,13 +384,13 @@ bool init()
 #pragma region // Particle System
 
 	// Setup the particle system
-	ProgramParticle.SendUniform("initialPos", 0.0, 0.58, 0.0);
-	ProgramParticle.SendUniform("gravity", 0.0, -0.2, 0.0);
+	ProgramParticle.SendUniform("gravity", 0.0, -10.4, 0.0);
 	ProgramParticle.SendUniform("particleLifetime", LIFETIME);
 
 	// Prepare the particle buffers
 	std::vector<float> bufferVelocity;
 	std::vector<float> bufferStartTime;
+	std::vector<float> bufferInitialPos;
 	float time = 0;
 	for (int i = 0; i < NPARTICLES; i++)
 	{
@@ -405,6 +406,12 @@ bool init()
 		bufferVelocity.push_back(z * v);
 
 		bufferStartTime.push_back(time);
+
+		double randomPos = (5000 - rand() % 10000) / (double)100;
+		double randomPos2 = (5000 - rand() % 10000) / (double)100;
+		bufferInitialPos.push_back(randomPos);
+		bufferInitialPos.push_back(0);
+		bufferInitialPos.push_back(randomPos2);
 		time += PERIOD;
 	}
 	glGenBuffers(1, &idBufferVelocity);
@@ -414,6 +421,10 @@ bool init()
 	glGenBuffers(1, &idBufferStartTime);
 	glBindBuffer(GL_ARRAY_BUFFER, idBufferStartTime);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * bufferStartTime.size(), &bufferStartTime[0],
+		GL_STATIC_DRAW);
+	glGenBuffers(1, &idBufferInitialPos);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferInitialPos);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * bufferInitialPos.size(), &bufferInitialPos[0],
 		GL_STATIC_DRAW);
 
 	// setup the point size for particle
@@ -556,6 +567,10 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 #pragma region // Skybox
 
 	float step = 1 * time;
+	Program.SendUniform("lightSpot[0].on", 0);
+	Program.SendUniform("lightSpot[1].on", 0);
+	Program.SendUniform("lightSpot[2].on", 0);
+	Program.SendUniform("lightSpot[3].on", 0);
 	Program.SendUniform("useShadowMap", 0);
 	Program.SendUniform("useNormalMap", 0);
 	Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
@@ -571,6 +586,11 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	tempM = rotate(tempM, radians(230.f), vec3(1.0f, 0.0f, 0.0f));
 	Program.SendUniform("lightDir.matrix", tempM);
 	ProgramTerrain.SendUniform("lightDir.matrix", tempM);
+
+	Program.SendUniform("lightSpot[0].on", 1);
+	Program.SendUniform("lightSpot[1].on", 1);
+	Program.SendUniform("lightSpot[2].on", 1);
+	Program.SendUniform("lightSpot[3].on", 1);
 #pragma endregion
 
 #pragma region // Map 
@@ -597,6 +617,11 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 #pragma endregion
 
 #pragma region // Road
+	glActiveTexture(GL_TEXTURE2);
+	Program.SendUniform("useCubeMap", 0);
+	Program.SendUniform("reflectionPower", 1.0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
+
 	Program.SendUniform("useShadowMap", 1);
 	Program.SendUniform("useNormalMap", 1);
 	Program.SendUniform("materialAmbient", 1.0, 1.0, 1.0);
@@ -611,6 +636,8 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	m = scale(m, vec3(5.0f, 5.0f, 5.0f));
 	road.render(m);
 
+	Program.SendUniform("reflectionPower", 0.0);
+
 #pragma endregion
 	
 #pragma region // Deloran
@@ -619,43 +646,36 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	Program.SendUniform("materialAmbient", 1.0, 1.0, 1.0);
 	Program.SendUniform("materialDiffuse", 0.2f, 0.2f, 0.2f);
 
-	static float height = 5.5f;
+	static float height = 20.5f;
 	float calc = height + sinf(time / 1.5f) * 1.0f;
 
 	m = matrixView;
-	m = translate(m, vec3(0.0f, calc, -25.0f));
-	m = rotate(m, radians(0.f), vec3(0.0f, 1.0f, 0.0f));
+	m = translate(m, vec3(-50.0f, calc, -5.0f));
+	m = rotate(m, radians(110.0f), vec3(-0.2f, 1.0f, -0.1f));
+	tempM = m;
 	m = scale(m, vec3(5.0f, 5.0f, 5.0f));
 	delorean.render(m);
-
-	if (isLightOn)
-	{
-		m = matrixView;
-		m = translate(m, vec3(5.0f, calc - 1, -27.0f));
-		Program.SendUniform("lightSpot[0].matrix", m);
-
-		m = matrixView;
-		m = translate(m, vec3(5.0f, calc - 1, -18.0f));
-		Program.SendUniform("lightSpot[1].matrix", m);
-
-		m = matrixView;
-		m = translate(m, vec3(-5.0f, calc - 1, -27.0f));
-		Program.SendUniform("lightSpot[2].matrix", m);
-
-		m = matrixView;
-		m = translate(m, vec3(-5.0f, calc - 1, -18.0f));
-		Program.SendUniform("lightSpot[3].matrix", m);
-	}
 
 	Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
 	Program.SendUniform("materialDiffuse", 0.0f, 0.0f, 0.0f);
 	Program.SendUniform("materialAmbient", 1.0f, 1.0f, 1.0f);
 
-	m = matrixView;
-	m = translate(m, vec3(0.0f, calc, -25.0f));
-	m = rotate(m, radians(0.f), vec3(0.0f, 1.0f, 0.0f));
-	m = scale(m, vec3(5.01f, 5.01f, 5.01f));
 	deloreanWheel.render(m);
+
+	if (isLightOn)
+	{
+		tempM = translate(m, vec3(1.0f, calc - 5.0, -0.4f));
+		Program.SendUniform("lightSpot[0].matrix", tempM);
+
+		tempM = translate(m, vec3(1.0f, calc - 5.0, 1.4f));
+		Program.SendUniform("lightSpot[1].matrix", tempM);
+
+		tempM = translate(m, vec3(-1.0f, calc - 5.0, -0.4f));
+		Program.SendUniform("lightSpot[2].matrix", tempM);
+
+		tempM = translate(m, vec3(-1.0f, calc - 5.0, 1.4f));
+		Program.SendUniform("lightSpot[3].matrix", tempM);
+	}
 
 #pragma endregion
 
@@ -669,36 +689,9 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	m = matrixView;
 	m = translate(m, vec3(0, 5.0f, 0));
 	Program.SendUniform("matrixModelView", m);
-	glutSolidSphere(3.0, 30.0, 30.0);
+	//glutSolidSphere(3.0, 30.0, 30.0);
 
 	Program.SendUniform("reflectionPower", 0.0);
-
-#pragma endregion
-
-#pragma region // Particle System
-
-	glDepthMask(GL_FALSE);				// disable depth buffer updates
-	glActiveTexture(GL_TEXTURE0);			// choose the active texture
-	glBindTexture(GL_TEXTURE_2D, idTexParticle);	// bind the texture
-
-	// RENDER THE PARTICLE SYSTEM
-	ProgramParticle.Use();
-
-	m = matrixView;
-	ProgramParticle.SendUniform("matrixModelView", m);
-
-	// render the buffer
-	glEnableVertexAttribArray(0);	// velocity
-	glEnableVertexAttribArray(1);	// start time
-	glBindBuffer(GL_ARRAY_BUFFER, idBufferVelocity);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glBindBuffer(GL_ARRAY_BUFFER, idBufferStartTime);
-	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, 0);
-	glDrawArrays(GL_POINTS, 0, NPARTICLES);
-	glDisableVertexAttribArray(0);
-	glDisableVertexAttribArray(1);
-
-	glDepthMask(GL_TRUE);		// don't forget to switch the depth test updates back on
 
 #pragma endregion
 
@@ -713,10 +706,45 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 
 	// render the water
 	m = matrixView;
-	m = translate(m, vec3(0, waterLevel, 0));
-	m = scale(m, vec3(1.5f, 1.0f, 1.5f));
+	m = translate(m, vec3(0, waterLevel, -25.0));
+	m = scale(m, vec3(1.0f, 1.0f, 0.3f));
 	ProgramWater.SendUniform("matrixModelView", m);
-	//water.render(m);
+	water.render(m);
+
+#pragma endregion
+
+#pragma region // Particle System
+
+	glDepthMask(GL_FALSE);				// disable depth buffer updates
+	glActiveTexture(GL_TEXTURE0);			// choose the active texture
+	glBindTexture(GL_TEXTURE_2D, idTexParticle);	// bind the texture
+
+	// RENDER THE PARTICLE SYSTEM
+	ProgramParticle.Use();
+
+	 mat4 viewModel = inverse(matrixView);
+	 vec3 camPos(viewModel[3]);
+
+	m = matrixView;
+	m = translate(m, vec3(camPos[0], 70, camPos[2]));
+	ProgramParticle.SendUniform("matrixModelView", m);
+
+	// render the buffer
+	glEnableVertexAttribArray(0);	// velocity
+	glEnableVertexAttribArray(1);	// start time
+	glEnableVertexAttribArray(2);	// initial position
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferVelocity);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferStartTime);
+	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, idBufferInitialPos);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glDrawArrays(GL_POINTS, 0, NPARTICLES);
+	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
+	glDisableVertexAttribArray(2);
+
+	glDepthMask(GL_TRUE);		// don't forget to switch the depth test updates back on
 
 #pragma endregion
 }
@@ -863,10 +891,7 @@ void onReshape(int w, int h)
 	Program.SendUniform("matrixProjection", matrixProjection);
 	ProgramWater.SendUniform("matrixProjection", matrixProjection);
 	ProgramTerrain.SendUniform("matrixProjection", matrixProjection);
-
-	mat4 m = perspective(radians(60.f), ratio, 0.02f, 1000.f);
-	Program.SendUniform("matrixProjection", m);
-	ProgramParticle.SendUniform("matrixProjection", m);
+	ProgramParticle.SendUniform("matrixProjection", matrixProjection);
 
 }
 
