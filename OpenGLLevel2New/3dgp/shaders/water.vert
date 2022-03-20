@@ -65,10 +65,10 @@ vec4 DirectionalLight(DIRECTIONAL light)
 void main(void) 
 {
 	// Calculate the wave
-	float a = 0.0;
+	float a = 0.05;
 	float y = wave(a, aVertex.x, aVertex.z, t);
 
-	float d = 0.0;
+	float d = 0.05;
 	float dx = (wave(a, aVertex.x+d, aVertex.z, t) - wave(a, aVertex.x-d, aVertex.z, t)) / 2 / d;
 	float dz = (wave(a, aVertex.x, aVertex.z+d, t) - wave(a, aVertex.x, aVertex.z-d, t)) / 2 / d;
 

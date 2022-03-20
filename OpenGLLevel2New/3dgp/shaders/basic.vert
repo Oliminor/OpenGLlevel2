@@ -37,6 +37,12 @@ out vec3 texCoordCubeMap;
 uniform mat4 matrixShadow;
 out vec4 shadowCoord;
 
+// Bone
+#define MAX_BONES 100
+uniform mat4 bones[MAX_BONES];
+in ivec4 aBoneId;
+in  vec4 aBoneWeight;
+uniform int isAnimated;
 
 
 
@@ -76,12 +82,22 @@ vec4 DirectionalLight(DIRECTIONAL light)
 
 void main(void) 
 {
+	// Bone thingy 
+	mat4 matrixBone;
+	if (aBoneWeight[0] == 0.0)
+		matrixBone = mat4(1);
+	else
+		matrixBone = (bones[aBoneId[0]] * aBoneWeight[0] +
+					  bones[aBoneId[1]] * aBoneWeight[1] +
+					  bones[aBoneId[2]] * aBoneWeight[2] +
+					  bones[aBoneId[3]] * aBoneWeight[3]);
+
 	// calculate position
-	position = matrixModelView * vec4(aVertex, 1.0);
+	position = matrixModelView * matrixBone * vec4(aVertex, 1.0);
 	gl_Position = matrixProjection * position;
 
 	// calculate normal
-	normal = normalize(mat3(matrixModelView) * aNormal);
+	normal = normalize(mat3(matrixModelView) * mat3(matrixBone) * aNormal);
 
 	// calculate tangent local system transformation
 	vec3 tangent = normalize(mat3(matrixModelView) * aTangent);
@@ -89,7 +105,7 @@ void main(void)
 	matrixTangent = mat3(tangent, biTangent, normal);
 
 	// calculate Cube Map
-	texCoordCubeMap = inverse(mat3(matrixView)) * mix(-reflect(position.xyz, normal.xyz), normal.xyz, 0.2);
+	texCoordCubeMap = inverse(mat3(matrixView)) * mix(reflect(position.xyz, normal.xyz), normal.xyz, 0.2);
 
 	// calculate shadow coordinate – using the Shadow Matrix
 	mat4 matrixModel = inverse(matrixView) * matrixModelView;
@@ -99,7 +115,6 @@ void main(void)
 	// calculate light
 	color = vec4(0, 0, 0, 1);
 	if (lightAmbient.on == 1)	color += AmbientLight(lightAmbient);
-	if (lightAmbient2.on == 1)	color += AmbientLight(lightAmbient2);
 	if (lightDir.on == 1)		color += DirectionalLight(lightDir);
 
 	// calculate texture coordinate

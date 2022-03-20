@@ -23,11 +23,23 @@ out vec3 normal;
 
 // Fog
 out float fogFactor;
+out float fogFactor2;
 uniform float fogDensity;
+uniform float fogDensity2;
 
 // Water
 uniform float waterLevel;	// water level (in absolute units)
 out float waterDepth;	// water depth (positive for underwater, negative for the shore)
+
+// Shadow Map
+uniform mat4 matrixShadow;
+out vec4 shadowCoord;
+
+// Normal Map
+in vec3 aTangent;
+in vec3 aBiTangent;
+out mat3 matrixTangent;
+
 
 struct AMBIENT
 {	
@@ -62,7 +74,6 @@ vec4 DirectionalLight(DIRECTIONAL light)
 	return color;
 }
 
-
 void main(void) 
 {
 	// calculate position
@@ -72,21 +83,32 @@ void main(void)
 	// calculate normal
 	normal = normalize(mat3(matrixModelView) * aNormal);
 
+	// calculate tangent local system transformation
+	vec3 tangent = normalize(mat3(matrixModelView) * aTangent);
+	vec3 biTangent = normalize(mat3(matrixModelView) * aBiTangent);
+	matrixTangent = mat3(tangent, biTangent, normal);
+
 	// calculate light
 	color = vec4(0, 0, 0, 1);
 	if (lightAmbient.on == 1)	color += AmbientLight(lightAmbient);
 	if (lightDir.on == 1)		color += DirectionalLight(lightDir);
 
+	// calculate shadow coordinate – using the Shadow Matrix
+	mat4 matrixModel = inverse(matrixView) * matrixModelView;
+	shadowCoord = matrixShadow * matrixModel * vec4(aVertex + aNormal * 0.1, 1);
+
 	// calculate texture coordinate
 	texCoord0 = aTexCoord;
 
-		// calculate depth of water
+	// calculate depth of water
 	waterDepth = waterLevel - aVertex.y;
 
 	// calculate the observer's altitude above the observed vertex
 	float eyeAlt = dot(-position.xyz, mat3(matrixModelView) * vec3(0, 1 ,0));
-	float depthFactor = max(waterDepth, 0) / eyeAlt; 
+	float depthFactor = max(waterDepth, 0) / max(eyeAlt, 0.001f); 
 
 	// Fog calculation
 	fogFactor = exp2(-fogDensity * length(position) * depthFactor);
+
+	fogFactor2 = exp2(-fogDensity2 * length(position));
 }

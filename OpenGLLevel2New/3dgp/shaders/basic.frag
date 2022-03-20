@@ -23,6 +23,15 @@ in vec2 texCoord0;
 
 uniform sampler2D texture0;
 
+// UV scale
+uniform float scaleX;
+uniform float scaleY;
+
+// Animated textures 
+uniform float time;
+uniform float speedX;
+uniform float speedY;
+
 // Fog
 uniform vec3 fogColour;
 in float fogFactor;
@@ -36,7 +45,7 @@ vec3 normalNew;
 // Cube Map
 in vec3 texCoordCubeMap;
 uniform samplerCube textureCubeMap;
-uniform samplerCube textureCubeMapD;
+uniform samplerCube textureCubeMap2;
 uniform float reflectionPower;
 uniform int useCubeMap;
 
@@ -45,10 +54,13 @@ in vec4 shadowCoord;
 uniform sampler2DShadow shadowMap;
 uniform int useShadowMap;
 
+//Opacity
+uniform float opacity;
 
 
 struct SPOT{
 	int on;
+	float att_quadratic;
 	vec3 position;
 	vec3 diffuse;
 	vec3 specular;
@@ -80,11 +92,15 @@ vec4 SpotLight(SPOT light)
 	if (NdotL > 0)
 		color += vec4(materialDiffuse * light.diffuse, 1) * max(NdotL, 0);
 
-		vec3 V = normalize(-position.xyz);
-		vec3 R = reflect(-L, normalNew);
-		float RdotV = dot(R, V);
+	vec3 V = normalize(-position.xyz);
+	vec3 R = reflect(-L, normalNew);
+	float RdotV = dot(R, V);
 
-		if(NdotL > 0 && RdotV > 0) color += vec4(materialSpecular * light.specular * pow(RdotV, shininess), 1);
+	if(NdotL > 0&& RdotV > 0)color += vec4(materialSpecular * light.specular * pow(RdotV, shininess), 1);
+
+	// Attenuated
+	float dist = length(light.matrix * vec4(light.position, 1) -position);
+	float att = 1 / (light.att_quadratic * dist * dist);
 
 	// Calculate Spot Light part
 	vec3 direction = normalize(mat3(light.matrix) * light.direction);
@@ -96,7 +112,7 @@ vec4 SpotLight(SPOT light)
 	if (angleAlpha <= cutAngle) factor = pow(spot, light.attenuation);
 	else factor = 0;
 	
-	return factor * color;
+	return (factor * color) * att;
 }
 
 vec4 PointLight (POINT light)
@@ -124,6 +140,10 @@ vec4 PointLight (POINT light)
 
 void main(void) 
 {
+	// Animated texture
+	float xScrollValue = speedX * time;
+	float yScrollValue = speedY * time;
+
 	// Rim Light Effect
 	vec3 N = normalize(normal);
 	vec3 V = normalize(-vec3(position));
@@ -133,7 +153,7 @@ void main(void)
 	// Normal calculation
 	if (useNormalMap == 1)
 	{
-		normalNew = 2.0 * texture(textureNormal, texCoord0).xyz - vec3(1.0, 1.0, 1.0);
+		normalNew = 2.0 * texture(textureNormal, texCoord0* vec2(scaleX, scaleY)).xyz - vec3(1.0, 1.0, 1.0);
 		normalNew = normalize(matrixTangent * normalNew);
 	}
 	else
@@ -141,27 +161,28 @@ void main(void)
 
 	outColor = color;
 
-	// Cube Map
-	if (useCubeMap == 1) outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap, texCoordCubeMap), reflectionPower);
-
 	// Calculation of the shadow
 	float shadow = 1.0;
 	if (shadowCoord.w > 0)	// if shadowCoord.w < 0 fragment is out of the Light POV
 		shadow = 0.5 + 0.5 * textureProj(shadowMap, shadowCoord);
 
+	// Cube Map
+	if (useCubeMap == 1) outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap , texCoordCubeMap), reflectionPower);
+	if (useCubeMap == 1) outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap2, texCoordCubeMap), reflectionPower);
 
-		for (int i = 0; i < lightPoint.length; i++)
+
+	for (int i = 0; i < lightPoint.length; i++)
 	{
 		if (lightPoint[i].on == 1)	outColor += PointLight(lightPoint[i]);
 	}
 
-		for (int i = 0; i < lightSpot.length; i++)
+	for (int i = 0; i < lightSpot.length; i++)
 	{
 		if (lightSpot[i].on == 1)	outColor += SpotLight(lightSpot[i]);
 	}
 
-	outColor *= texture(texture0, texCoord0);
-	//outColor.rgb += vec3(finalColor) * materialDiffuse.rgb; // Rim light
-	if (useShadowMap == 1) outColor *= shadow; // Shadow
-	//outColor = mix(vec4(fogColour, 1), outColor, fogFactor); // Fog
+	outColor *= texture(texture0, texCoord0 * vec2(scaleX, scaleY));
+	outColor = vec4(outColor[0], outColor[1], outColor[2], opacity);
+	//if (useShadowMap == 1) outColor *= shadow; // Shadow
+	outColor = mix(vec4(fogColour, 1), outColor, fogFactor); // Fog
 }

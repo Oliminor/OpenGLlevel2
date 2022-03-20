@@ -25,5 +25,5 @@ void main(void)
 
 	outColor = color;
 
-	outColor = mix(vec4(waterColor, 0.2), vec4(skyColor, 1), newReflFactor);
+	outColor = mix(vec4(waterColor, 0.15), vec4(skyColor, 1), newReflFactor);
 }

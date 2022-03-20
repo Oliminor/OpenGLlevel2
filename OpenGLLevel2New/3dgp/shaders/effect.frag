@@ -11,17 +11,25 @@ uniform vec2 resolution = vec2(800, 600);
 out vec4 outColor;
 
 // Vignette parameters
-const float RADIUS = 0.75;
+const float RADIUS = 0.85;
 const float SOFTNESS = 0.45;
 
 // Colour definitions
 const vec3 lum = vec3(0.299, 0.587, 0.114);	// B&W filter
 const vec3 sepia = vec3(1.2, 1.0, 0.8); 
 
+// Contrast and brightness
+uniform float brightness;
+uniform float contrast;
+
 
 void main(void) 
 {
       outColor = texture(texture0, texCoord0);
+
+	  //https://stackoverflow.com/questions/1506299/applying-brightness-and-contrast-with-opengl-es
+
+	  outColor = mix(outColor * brightness, mix(vec4(0.5,0.5,0.5,1.0), outColor, contrast), 0.5);
 
     // Vignette
 
@@ -35,14 +43,5 @@ void main(void)
     dist = smoothstep(RADIUS, RADIUS-SOFTNESS, dist);
 
     // mix in the vignette
-    //outColor.rgb = mix(outColor.rgb, outColor.rgb * dist, 0.5);
-
-    // Sepia
-
-    // Find gray scale value using NTSC conversion weights
-    float gray = dot(outColor.rgb, lum);
-
-    // mix-in the sepia effect
-    //outColor.rgb = mix(outColor.rgb, vec3(gray) * sepia, 0.75);
-
+    outColor.rgb = mix(outColor.rgb, outColor.rgb * dist, 0.5);
 }

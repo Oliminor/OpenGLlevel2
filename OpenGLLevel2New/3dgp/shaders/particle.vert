@@ -22,7 +22,8 @@ out float age;					// age of the particle (0..1)
 void main()
 {
 	float t = mod(time - aStartTime, particleLifetime);
-	vec3 pos = aInitialPos + aVelocity * t * gravity; 
+	vec3 initialPos = vec3(aInitialPos[0] + (t * t) * 15, aInitialPos[1], aInitialPos[2]+ (t * t) * 5);
+	vec3 pos = initialPos + aVelocity * t * gravity; 
 	age = t / particleLifetime;
 
 	// calculate position (normal calculation not applicable here)
@@ -31,5 +32,5 @@ void main()
 
 	float distance = distance(vec3(position), vec3(matrixView));
 
-	gl_PointSize = mix(200 / distance, 40 / distance, age);
+	gl_PointSize = mix(100 / distance, 10 / distance, age);
 }
