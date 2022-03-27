@@ -23,7 +23,7 @@ bool C3dglObject::displayInfo(int nSeverity)
 	if (name.empty())
 		(m_bStatus ? cout : cerr) << severity << m_info << endl;
 	else
-		(m_bStatus ? cout : cerr) << severity << getName() << " " << m_info << endl;
+		(m_bStatus ? cout : cerr) << severity << name << " " << m_info << endl;
 	return m_bStatus; 
 }
 

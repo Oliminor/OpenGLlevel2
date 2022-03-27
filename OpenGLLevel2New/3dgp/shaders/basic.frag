@@ -46,6 +46,7 @@ vec3 normalNew;
 in vec3 texCoordCubeMap;
 uniform samplerCube textureCubeMap;
 uniform samplerCube textureCubeMap2;
+uniform samplerCube textureCubeMap3;
 uniform float reflectionPower;
 uniform int useCubeMap;
 
@@ -167,8 +168,12 @@ void main(void)
 		shadow = 0.5 + 0.5 * textureProj(shadowMap, shadowCoord);
 
 	// Cube Map
-	if (useCubeMap == 1) outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap , texCoordCubeMap), reflectionPower);
-	if (useCubeMap == 1) outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap2, texCoordCubeMap), reflectionPower);
+	if(useCubeMap == 1)
+	{
+		outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap , texCoordCubeMap), reflectionPower);
+		outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap2, texCoordCubeMap), reflectionPower);
+		outColor = mix(outColor * texture(texture0, texCoord0.st), texture(textureCubeMap3, texCoordCubeMap), reflectionPower);
+	}
 
 
 	for (int i = 0; i < lightPoint.length; i++)

@@ -130,6 +130,11 @@ public:
 		
 		aiVector3D *getBB()			{ return bb; }
 		aiVector3D getCentre()		{ return centre; } 
+	
+		std::string getName()				{ return "mesh #" + std::to_string(this - &m_pOwner->m_meshes[0]); }
+		bool logError(std::string info)		{ return m_pOwner->logError(getName() + " " + info);  }
+		void logWarning(std::string info)	{ return m_pOwner->logWarning(getName() + " " + info); }
+		void logInfo(std::string info)		{ return m_pOwner->logInfo(getName() + " " + info); }
 	};
 
 private:
@@ -141,10 +146,19 @@ private:
 
 	unsigned m_maskEnabledBufData;
 
-	// bone related
+	// bone & animation data
+	struct ANIMATION
+	{
+		std::map<const aiNode*, std::pair<unsigned, unsigned> > m_lookUp;
+		aiAnimation* m_pAnim;
+	};
+	std::vector<ANIMATION> m_animations;
+	std::vector<C3dglModel*> m_auxModels;			// used by loadAnimations(pFile)
 	std::map<std::string, unsigned> m_mapBones;		// map of bone names
-	std::vector<aiMatrix4x4> m_offsetBones;
-	
+	std::vector<std::string> m_vecBoneNames;		// vector of bone names
+	std::vector<aiMatrix4x4> m_vecBoneOffsets;		// vector of bone offsets
+	aiMatrix4x4 m_globInvT;
+
 public:
 	C3dglModel() : C3dglObject()			{ m_pScene = NULL; m_maskEnabledBufData = NULL;  }
 	~C3dglModel()							{ destroy(); }
@@ -157,6 +171,11 @@ public:
 	void create(const aiScene *pScene);
 	// create material information and load textures from MTL file - must be preceded by either load or create
 	void loadMaterials(const char* pDefTexPath = NULL);
+	// load animations. By default loads animations from the current model. 
+	// Any other model must be structurally compatible. Returns number of animations successfully loaded.
+	unsigned loadAnimations();
+	unsigned loadAnimations(C3dglModel* pCompatibleModel);
+	unsigned loadAnimations(const char* pFile, unsigned int flags = aiProcessPreset_TargetRealtime_MaxQuality);
 	// destroy the model
 	void destroy();
 
@@ -168,29 +187,46 @@ public:
 	unsigned getMaterialCount()				{ return m_materials.size(); }
 	CMaterial *getMaterial(unsigned i)		{ return (i < m_materials.size()) ? &m_materials[i] : NULL; }
 
-	// rendering
+	// Rendering
 	void render(glm::mat4 matrix);					// render the entire model
-	void render(unsigned iNode, glm::mat4 matrix);	// render one of the main nodes
+	void render(unsigned iNode, glm::mat4 matrix);	// render one of the parent nodes
+	unsigned getParentNodeCount()			{ return (m_pScene && m_pScene->mRootNode) ? m_pScene->mRootNode->mNumChildren : 0; }
+	void renderNode(aiNode* pNode, glm::mat4 m);	// render a node
 
-	void render();									// render the entire model
-	void render(unsigned iNode);					// render one of the main nodes
-	void renderNode(aiNode *pNode, glm::mat4 m);	// render a node
+	// Deprecated rendering functions - used old-style OGL GL_MODELVIEW_MATRIX matrix
+	//void render();									// DEPRECATED render the entire model
+	//void render(unsigned iNode);					// DEPRECATED render one of the main nodes
 
+
+	// Advanced functions
 	// retrieves the transform associated with the given node. If (bRecursive) the transform is recursively combined with parental transform(s)
 	void getNodeTransform(aiNode *pNode, float pMatrix[16], bool bRecursive = true);
 	
-	// retrieves bone animations. Transforms vector will be resized to match the number of bones in the model
-	void getBoneTransforms(unsigned iAnimation, float time, std::vector<float>& Transforms);
+	// Bone system functions
+	unsigned getBoneCount()									{ return m_mapBones.size(); }
+	std::string getBoneName(unsigned i) { return i < getBoneCount() ? m_vecBoneNames[i] : ""; }
+	bool getBone(std::string boneName);						// true if bone exists in the model
+	bool getBone(std::string boneName, unsigned& id);		// as above, additionally returns the bone id
+	bool getOrAddBone(std::string boneName, unsigned& id);	// as above, creates a new bone if doesn't exist
 
-	// get bounding box
+	bool hasAnimations()					{ return m_animations.size() > 0;  }
+	unsigned getAnimCount()					{ return m_animations.size(); }
+	bool hasAnim(unsigned iAnim)			{ return iAnim < getAnimCount(); }
+	std::string GetAnimName(unsigned iAnim) { return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mName.data : NULL; }
+	double GetAnimDuration(unsigned iAnim)	{ return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mDuration : 0; }
+	double GetAnimTicksPerSecond(unsigned iAnim) { return hasAnim(iAnim) ? m_animations[iAnim].m_pAnim->mTicksPerSecond : 0; }
+	// retrieve bone transformations for the given time point. The vector transforms will be cleared and resized to reflect the actual number of bones
+	void getAnimData(unsigned iAnim, float time, std::vector<float>& transforms);
+
+	// Bounding Box functions
 	void getBB(aiVector3D BB[2]);
 	void getBB(unsigned iNode, aiVector3D BB[2]);
-	bool getBBNode(aiNode *pNode, aiVector3D BB[2], aiMatrix4x4* trafo);
-
-	// bone system related
-	unsigned getBoneId(std::string boneName);
 
 	std::string getName();
+
+private:
+	bool getBBNode(aiNode* pNode, aiVector3D BB[2], aiMatrix4x4* trafo);
+	void readNodeHierarchy(ANIMATION &animation, float time, const aiNode* pNode, const aiMatrix4x4 &t, std::vector<float> &transforms);
 };
 
 }; // namespace _3dgl

@@ -33,7 +33,6 @@ in float fogFactor;
 in float fogFactor2;
 
 // Water
-uniform vec3 waterColor;
 in float waterDepth;		// water depth (positive for underwater, negative for the shore)
 
 // Shore

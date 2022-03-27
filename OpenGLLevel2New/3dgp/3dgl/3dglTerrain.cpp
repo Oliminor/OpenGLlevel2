@@ -25,6 +25,26 @@ float C3dglTerrain::getHeight(int x, int z)
 	return m_heights[x * m_nSizeZ + z];
 }
 
+glm::vec3 barycentric(glm::vec2 p, glm::vec2 a, glm::vec2 b, glm::vec2 c)
+{
+	auto v0 = b - a;
+	auto v1 = c - a;
+	auto v2 = p - a;
+
+	float d00 = glm::dot(v0, v0);
+	float d01 = glm::dot(v0, v1);
+	float d11 = glm::dot(v1, v1);
+	float d20 = glm::dot(v2, v0);
+	float d21 = glm::dot(v2, v1);
+	float denom = d00 * d11 - d01 * d01;
+
+	float v = (d11 * d20 - d01 * d21) / denom;
+	float w = (d00 * d21 - d01 * d20) / denom;
+	float u = 1.0f - v - w;
+
+	return glm::vec3(u, v, w);
+}
+
 	// compute the area of a triangle using Heron's formula
 	float triarea(float a, float b, float c)
 	{

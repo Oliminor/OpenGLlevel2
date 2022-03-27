@@ -37,9 +37,13 @@ float waterLevel = 11.0f;
 // Terrain
 C3dglTerrain terrain, water;
 
+// quad size
+float quadSize = 4;
+
 // Cube map
 GLuint idTexCube;
 GLuint idTexCube2;
+GLuint idTexCube3;
 
 // Shadow Map
 GLuint idTexShadowMap;
@@ -60,8 +64,11 @@ C3dglModel deloreanWheel;
 C3dglModel SFCube;
 C3dglModel ring;
 C3dglModel character;
+C3dglModel character2;
+C3dglModel character3;
 C3dglModel sword;
 C3dglModel radio;
+C3dglModel scout;
 
 GLuint idTexNone;
 GLuint idTexSandC;
@@ -75,7 +82,11 @@ GLuint idSword;
 
 GLuint idTexScreen;
 
-float rotateSpeed = 60;;
+float rotateSpeed = 60;
+float transition;
+vec3 finalFogColor;
+int postProcessMode = 0;
+int animationMode = 0;
 
 // buffers names
 unsigned vertexBuffer = 0;
@@ -98,6 +109,7 @@ void RefreshPostProcessing ()
 	HImage = viewport[3];
 
 	if (TempWImage == WImage && TempHImage == HImage) return;
+	ProgramEffect.SendUniform("resolution", WImage, HImage);
 
 	// Create screen space texture
 	glGenTextures(1, &idTexScreen);
@@ -247,10 +259,17 @@ bool init()
 	if (!SFCube.load("models\\SFCube\\cube.obj")) return false;
 	if (!ring.load("models\\bg\\ring.obj")) return false;
 	if (!character.load("models\\character\\sitIdle.dae")) return false;
+	if (!character2.load("models\\character\\sitIdle2.dae")) return false;
+	if (!character3.load("models\\character\\punchingBag.dae")) return false;
 	if (!sword.load("models\\sword\\sword.obj")) return false;
+	if (!scout.load("models\\scout.obj")) return false;
 	if (!radio.load("models\\radio\\Radio.obj")) return false;
 	radio.loadMaterials("models\\radio\\Radio.mtl");
 	radio.getMaterial(0)->loadTexture(GL_TEXTURE0, "models/radio", "TextureRadio.png");
+
+	character.loadAnimations();
+	character2.loadAnimations();
+	character3.loadAnimations();
 
 	// load Sky Box     
 	if (!skybox.load("models\\skybox\\right.png", "models\\skybox\\left.png", "models\\skybox\\middle.png",
@@ -398,6 +417,14 @@ bool init()
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glGenTextures(1, &idTexCube3);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube3);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	
 #pragma endregion
 
@@ -508,6 +535,7 @@ bool init()
 	// Texture
 	ProgramParticle.SendUniform("texture0", 0);
 	ProgramEffect.SendUniform("texture0", 0);
+	ProgramEffect.SendUniform("mode", 0);
 	ProgramTerrain.SendUniform("texture0", 0);
 	ProgramTerrain.SendUniform("textureBed", 0);
 	ProgramTerrain.SendUniform("textureShore", 1);
@@ -515,6 +543,7 @@ bool init()
 	Program.SendUniform("textureNormal", 1);
 	Program.SendUniform("textureCubeMap", 2);
 	Program.SendUniform("textureCubeMap2", 2);
+	Program.SendUniform("textureCubeMap3", 2);
 	Program.SendUniform("shadowMap", 7);
 	ProgramTerrain.SendUniform("shadowMap", 7);
 	ProgramTerrain.SendUniform("textureNormal", 1);
@@ -538,7 +567,6 @@ bool init()
 	ProgramWater.SendUniform("waterColor", 0.2f, 0.22f, 0.02f);
 	ProgramWater.SendUniform("skyColor", 0.2f, 0.6f, 1.f);
 
-	ProgramTerrain.SendUniform("waterColor", 0.2f, 0.22f, 0.02f);
 	ProgramTerrain.SendUniform("waterLevel", waterLevel);
 
 	// Ambient Light
@@ -579,7 +607,7 @@ bool init()
 
 #pragma endregion
 
-#pragma region // Spot lights Blue
+#pragma region // Spot lights
 
 	// Spot light Blue 
 	Program.SendUniform("lightSpot[0].on", 1);
@@ -593,12 +621,29 @@ bool init()
 
 	ProgramTerrain.SendUniform("lightSpot[0].on", 1);
 	ProgramTerrain.SendUniform("lightSpot[0].position", 0.0f, 0.0f, 0.0f);
-	ProgramTerrain.SendUniform("lightSpot[0].diffuse", 0.0, 1.5, 20.0);
+	ProgramTerrain.SendUniform("lightSpot[0].diffuse", 0.0, 1.5, 10.0);
 	ProgramTerrain.SendUniform("lightSpot[0].specular", 2.0, 2.0, 2.0);
 	ProgramTerrain.SendUniform("lightSpot[0].direction", -1.0, -1.0, 0.0);
 	ProgramTerrain.SendUniform("lightSpot[0].cutoff", 60);
 	ProgramTerrain.SendUniform("lightSpot[0].attenuation", 10.0);
 	ProgramTerrain.SendUniform("lightSpot[0].att_quadratic", 0.01);
+
+	// Spot light Scout
+	Program.SendUniform("lightSpot[1].on", 1);
+	Program.SendUniform("lightSpot[1].diffuse", 5.0, 5.0, 5.0);
+	Program.SendUniform("lightSpot[1].specular", 2.0, 2.0, 2.0);
+	Program.SendUniform("lightSpot[1].direction", 0.0, -1.0, 0.0);
+	Program.SendUniform("lightSpot[1].cutoff", 60);
+	Program.SendUniform("lightSpot[1].attenuation", 10.0);
+	Program.SendUniform("lightSpot[1].att_quadratic", 0.00005);
+
+	ProgramTerrain.SendUniform("lightSpot[1].on", 1);
+	ProgramTerrain.SendUniform("lightSpot[1].diffuse", 5.0, 5.0, 5.0);
+	ProgramTerrain.SendUniform("lightSpot[1].specular", 2.0, 2.0, 2.0);
+	ProgramTerrain.SendUniform("lightSpot[1].direction", 0.0, -1.0, 0.0);
+	ProgramTerrain.SendUniform("lightSpot[1].cutoff", 60);
+	ProgramTerrain.SendUniform("lightSpot[1].attenuation", 10.0);
+	ProgramTerrain.SendUniform("lightSpot[1].att_quadratic", 0.00005);
 
 	
 #pragma endregion
@@ -626,6 +671,8 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	// mat4 viewModel = inverse(matrixView);
 	// vec3 camPos(viewModel[3]);
 
+	ProgramEffect.SendUniform("mode", postProcessMode);
+
 	mat4 m;
 	mat4 tempM;
 
@@ -635,7 +682,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 
 	float step = hour * 15;
 
-	float transition = hour / 4;
+	transition = hour / 4;
 
 	if (transition > 1) transition = 1;
 
@@ -646,7 +693,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	vec3 fogColorA = vec3(0.0f, 0.14f, 0.31f);
 	vec3 fogColorB = vec3(0.4f, 0.3f, 0.1f);
 
-	vec3 finalFogColor = fogColorA * (1 - transition) + fogColorB * transition;
+	finalFogColor = fogColorA * (1 - transition) + fogColorB * transition;
 
 #pragma region // Skybox
 	Program.SendUniform("scaleX", 1);
@@ -657,6 +704,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	Program.SendUniform("lightSpot[2].on", 0);
 	Program.SendUniform("lightSpot[3].on", 0);
 	Program.SendUniform("lightPoint[1].on", 0);
+	Program.SendUniform("lightSpot[1].on", 0);
 	Program.SendUniform("lightDir.on", 0);
 	Program.SendUniform("useShadowMap", 0);
 	Program.SendUniform("useNormalMap", 0);
@@ -691,29 +739,21 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	Program.SendUniform("lightDir.diffuse",8.0, 8.0, 8.0);
 	Program.SendUniform("materialDiffuse", 0.2f, 0.2f, 0.2f);
 
-	Program.SendUniform("useCubeMap", 1);
-	float reflectionValue = transition - 0.6f;
-	if (reflectionValue <= 0) reflectionValue = 0;
-	Program.SendUniform("reflectionPower", 0.4f - reflectionValue);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube);
-
 	m = matrixView;
 	m = translate(m, vec3(55.0f, 18.0f, -5.0f));
 	m = rotate(m, radians(110.0f), vec3(-0.1f, 1.0f, 0.0f));
 	tempM = m;
 	m = scale(m, vec3(5.0f, 5.0f, 5.0f));
-	delorean.render(m);
 
 	if ((int)step % 10 == 0 || (int)step % 12 == 0)
 	{
 		Program.SendUniform("reflectionPower", 0);
-		Program.SendUniform("materialAmbient", 2.0, 2.0, 2.0);
+		Program.SendUniform("materialAmbient", 10.0, 10.0, 10.0);
 		Program.SendUniform("lightAmbient.color", 0.0, 0.2, 0.8);
 	}
 
 	m = scale(m, vec3(1.001f, 1.001f, 1.001f));
-	deloreanWheel.render(m);
+	if (isLightOn) deloreanWheel.render(m);
 
 	if (isLightOn)
 	{
@@ -761,6 +801,35 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 
 #pragma endregion
 
+#pragma region // Scout
+
+	Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
+	Program.SendUniform("materialAmbient", 0.1, 0.1, 0.1);
+	Program.SendUniform("lightDir.diffuse", 5.0, 5.0, 5.0);
+	Program.SendUniform("materialDiffuse", 0.2f, 0.2f, 0.2f);
+	Program.SendUniform("lightSpot[1].on", 1);
+
+	m = matrixView;
+	m = translate(m, vec3(0.0f, 0.0f, 0.0f));
+	m = rotate(m, radians(-time * 30), vec3(0.0f, 1.0f, 0.0f));
+	m = rotate(m, radians(40.0f), vec3(0.0f, 0.0f, 1.0f));
+	m = translate(m, vec3(350.0f, -100.0f, 0.0f));
+	tempM = m;
+	m = scale(m, vec3(2.0f, 2.0f, 2.0f));
+	scout.render(m);
+
+	float calc = sinf(time / 1.5f) * 15.0f;
+
+	tempM = rotate(tempM, radians(280.0f + calc), vec3(0.0f, 0.0f, 1.0f));
+	tempM = translate(tempM, vec3(1.0f, -10.5f, 1.0f));
+	if (isLightOn)
+	{
+		Program.SendUniform("lightSpot[1].matrix", tempM);
+		ProgramTerrain.SendUniform("lightSpot[1].matrix", tempM);
+	}
+
+#pragma endregion
+
 #pragma region // Radio
 
 	Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
@@ -773,7 +842,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	tempM = m;
 	m = rotate(m, radians(180.f), vec3(-0.1f, 1.0f, -0.1f));
 	m = scale(m, vec3(0.07f, 0.07f, 0.07f));
-	radio.render(m);
+	if (isLightOn) radio.render(m);
 
 	if (isLightOn)
 	{
@@ -797,14 +866,29 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	Program.SendUniform("materialDiffuse", 0.2f, 0.2f, 0.2f);
 
 	std::vector<float> transforms;
-	//character.getAnimData(0, time, transforms);
-	character.getBoneTransforms(0, time, transforms);
+	character.getAnimData(0, time, transforms);
 	Program.SendUniformMatrixv("bones", (float*)&transforms[0], transforms.size() / 16);
 	m = matrixView;
 	m = translate(m, vec3(54.0f, 16.0f, -8.3f));
 	m = rotate(m, radians(180.0f), vec3(0.0f, 1.0f, 0.0f));
 	m = scale(m, vec3(3.0f, 3.0f, 3.0f));
-	character.render(m);
+	if (animationMode == 0)character.render(m);
+
+	character2.getAnimData(0, time, transforms);
+	Program.SendUniformMatrixv("bones", (float*)&transforms[0], transforms.size() / 16);
+	m = matrixView;
+	m = translate(m, vec3(64.2f, 16.9f, -5.8f));
+	m = rotate(m, radians(40.0f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(3.0f, 3.0f, 3.0f));
+	if (animationMode == 1) character2.render(m);
+
+	character3.getAnimData(0, time, transforms);
+	Program.SendUniformMatrixv("bones", (float*)&transforms[0], transforms.size() / 16);
+	m = matrixView;
+	m = translate(m, vec3(45.0f, 14.6f, 0.0f));
+	m = rotate(m, radians(270.0f), vec3(0.0f, 1.0f, 0.0f));
+	m = scale(m, vec3(3.0f, 3.0f, 3.0f));
+	if (animationMode == 2) character3.render(m);
 
 	Program.SendUniform("useNormalMap", 0);
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
@@ -837,7 +921,6 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 #pragma endregion
 
 #pragma region // Map 
-
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
 
@@ -854,6 +937,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 
 	m = matrixView;
 	m = translate(matrixView, vec3(0, -5.0f, 0));
+	ProgramTerrain.SendUniform("matrixModelView", m);
 	terrain.render(m);
 
 #pragma endregion
@@ -935,7 +1019,7 @@ void createShadowMap(float time, mat4 lightTransform)
 
 	// setup the viewport to 2x2 the original and wide (120 degrees) FoV (Field of View)
 	glViewport(0, 0, w * 2, h * 2);
-	mat4 matrixProjection = perspective(radians(120.f), (float)w / (float)h, 0.5f, 200.0f);
+	mat4 matrixProjection = perspective(radians(120.f), (float)w / (float)h, 0.5f, 50.0f);
 	Program.SendUniform("matrixProjection", matrixProjection);
 	ProgramTerrain.SendUniform("matrixProjection", matrixProjection);
 
@@ -1080,6 +1164,85 @@ void renderCube(mat4 matrixView, float time)
 	Program.SendUniform("reflectionPower", 0.0);
 }
 
+void prepareCubeMap2(float x, float y, float z, float time)
+{
+	// Store the current viewport in a safe place
+	GLint viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
+	int w = viewport[2];
+	int h = viewport[3];
+
+	// setup the viewport to 256x256, 90 degrees FoV (Field of View)
+	glViewport(0, 0, 512, 512);
+	Program.SendUniform("matrixProjection", perspective(radians(90.f), 1.0f, 0.02f, 1000.0f));
+
+	// render environment 6 times
+	Program.SendUniform("reflectionPower", 0.0);
+	for (int i = 0; i < 6; ++i)
+	{
+		// clear background
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// setup the camera
+		const GLfloat ROTATION[6][6] =
+		{	// at              up
+			{ 1.0, 0.0, 0.0,   0.0, -1.0, 0.0 },  // pos x
+			{ -1.0, 0.0, 0.0,  0.0, -1.0, 0.0 },  // neg x
+			{ 0.0, 1.0, 0.0,   0.0, 0.0, 1.0 },   // pos y
+			{ 0.0, -1.0, 0.0,  0.0, 0.0, -1.0 },  // neg y
+			{ 0.0, 0.0, 1.0,   0.0, -1.0, 0.0 },  // poz z
+			{ 0.0, 0.0, -1.0,  0.0, -1.0, 0.0 }   // neg z
+		};
+		mat4 matrixView2 = lookAt(
+			vec3(x, y, z),
+			vec3(x + ROTATION[i][0], y + ROTATION[i][1], z + ROTATION[i][2]),
+			vec3(ROTATION[i][3], ROTATION[i][4], ROTATION[i][5]));
+
+		// send the View Matrix
+		Program.SendUniform("matrixView", matrixView2);
+
+		// render scene objects - all but the reflective one
+		renderScene(matrixView2, time, false);
+		renderCube(matrixView2, time);
+
+		// send the image to the cube texture
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube3);
+		glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB8, 0, 0, 512, 512, 0);
+	}
+
+	// restore the matrixView, viewport and projection
+	void onReshape(int w, int h);
+	onReshape(w, h);
+}
+
+void renderDeloran(mat4 matrixView, float time)
+{
+	mat4 m = matrixView;
+
+	Program.SendUniform("fogDensity", 0.05);
+	Program.SendUniform("materialAmbient", 0.1, 0.1, 0.1);
+	Program.SendUniform("lightDir.diffuse", 8.0, 8.0, 8.0);
+	Program.SendUniform("materialDiffuse", 0.2f, 0.2f, 0.2f);
+
+	Program.SendUniform("useCubeMap", 1);
+	float reflectionValue = transition - 0.6f;
+	if (reflectionValue <= 0) reflectionValue = 0;
+	Program.SendUniform("reflectionPower", 0.4f - reflectionValue);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idTexCube3);
+
+	m = matrixView;
+	m = translate(m, vec3(55.0f, 18.0f, -5.0f));
+	m = rotate(m, radians(110.0f), vec3(-0.1f, 1.0f, 0.0f));
+	m = scale(m, vec3(5.0f, 5.0f, 5.0f));
+	delorean.render(m);
+
+	glActiveTexture(GL_TEXTURE0);
+	Program.SendUniform("useCubeMap", 0);
+	Program.SendUniform("reflectionPower", 0.0);
+}
+
 void onRender()
 {
 	RefreshPostProcessing();
@@ -1095,13 +1258,14 @@ void onRender()
 	
 	// Shadow map
 	createShadowMap(time, lookAt(
-		vec3(-2.55f, 150.0f, -1.0f), 	// These are the coordinates of the source of the light
+		vec3(-2.55f, 50.0f, -1.0f), 	// These are the coordinates of the source of the light
 		vec3(0.0f, 3.0f, 0.0f), 		// These are the coordinates of a point behind the scene
 		vec3(0.0f, 1.0f, 0.0f)));		// This is just a reasonable "Up" vector);
 
 	
 
 	prepareCubeMap(0.0f, 50.0f, 0.0f, time);
+	prepareCubeMap2(55.0f, 18.0f, -5.0f, time);
 
 	// Pass 1: off-screen rendering
 	glBindFramebufferEXT(GL_FRAMEBUFFER, idFBO);
@@ -1116,7 +1280,7 @@ void onRender()
 
 	// move the camera up following the profile of terrain (Y coordinate of the terrain)
 	float terrainY = -terrain.getInterpolatedHeight(inverse(matrixView)[3][0], inverse(matrixView)[3][2]);
-	matrixView = translate(matrixView, vec3(0, terrainY, 0));
+	matrixView = translate(matrixView, vec3(0, terrainY, 0));;
 
 	Program.SendUniform("matrixView", matrixView);
 	ProgramWater.SendUniform("matrixView", matrixView);
@@ -1127,6 +1291,7 @@ void onRender()
 
 	// render reflected objects
 	renderCube(matrixView, time);
+	renderDeloran(matrixView, time);
 
 	// the camera must be moved down by terrainY to avoid unwanted effects
 	matrixView = translate(matrixView, vec3(0, -terrainY, 0));
@@ -1208,6 +1373,14 @@ void onKeyUp(unsigned char key, int x, int y)
 	case 'd': cam.x = 0; break;
 	case 'q':
 	case 'e': cam.y = 0; break;
+	case '1': 
+		postProcessMode++;
+		if (postProcessMode > 6) postProcessMode = 0;
+		break;
+	case '2':
+		animationMode++;
+		if (animationMode > 2) animationMode = 0;
+		break;
 	}
 }
 
