@@ -87,6 +87,7 @@ float transition;
 vec3 finalFogColor;
 int postProcessMode = 0;
 int animationMode = 0;
+bool isNormalOn = false;
 
 // buffers names
 unsigned vertexBuffer = 0;
@@ -525,7 +526,7 @@ bool init()
 	// Initialise the View Matrix (initial position of the camera)
 	matrixView = rotate(mat4(1.f), radians(angleTilt), vec3(1.f, 0.f, 0.f));
 	matrixView *= lookAt(
-		vec3(0.0, 5.0, 25.0),
+		vec3(75.0f, 5.0f, -5.0f),
 		vec3(0.0, 5.0, 0.0),
 		vec3(0.0, 1.0, 0.0));
 
@@ -588,15 +589,15 @@ bool init()
 #pragma region // Point Light
 
 	Program.SendUniform("lightPoint[0].on", 1);
-	Program.SendUniform("lightPoint[0].att_quadratic", 0.005);
+	Program.SendUniform("lightPoint[0].att_quadratic", 0.05);
 	Program.SendUniform("lightPoint[0].position", 0.0f, 0.0f, 0.0f);
-	Program.SendUniform("lightPoint[0].diffuse", 0.1, 0.1, 0.1);
+	Program.SendUniform("lightPoint[0].diffuse", 1.0, 1.0, 1.0);
 	Program.SendUniform("lightPoint[0].specular", 0.01, 0.01, 0.01);
 
 	ProgramTerrain.SendUniform("lightPoint[0].on", 1);
-	ProgramTerrain.SendUniform("lightPoint[0].att_quadratic", 0.005);
+	ProgramTerrain.SendUniform("lightPoint[0].att_quadratic", 0.05);
 	ProgramTerrain.SendUniform("lightPoint[0].position", 0.0f, 0.0f, 0.0f);
-	ProgramTerrain.SendUniform("lightPoint[0].diffuse", 0.1, 0.1, 0.1);
+	ProgramTerrain.SendUniform("lightPoint[0].diffuse", 1.0, 1.0, 1.0);
 	ProgramTerrain.SendUniform("lightPoint[0].specular", 0.01, 0.01, 0.01);
 
 	Program.SendUniform("lightPoint[1].on", 1);
@@ -711,7 +712,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	Program.SendUniform("lightAmbient.color", 1.0, 1.0, 1.0);
 	Program.SendUniform("materialAmbient", 1.5, 1.5, 1.5);
 	Program.SendUniform("materialDiffuse", 0.3, 0.3, 0.3);
-	Program.SendUniform("opacity", 1 - transition);
+	Program.SendUniform("opacity", 1.05f - transition);
 
 	m = matrixView;
 	m = rotate(m, radians(180.f), vec3(0.0f, 1.0f, 0.0f));
@@ -860,7 +861,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idCharacterN);
 
-	Program.SendUniform("useNormalMap", 1);
+	Program.SendUniform("useNormalMap", isNormalOn);
 	Program.SendUniform("materialAmbient", 0.1, 0.1, 0.1);
 	Program.SendUniform("lightDir.diffuse", 5.0, 5.0, 5.0);
 	Program.SendUniform("materialDiffuse", 0.2f, 0.2f, 0.2f);
@@ -896,14 +897,12 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 #pragma endregion
 
 #pragma region // Ring
-	ProgramTerrain.SendUniform("fogColour2", finalFogColor[0], finalFogColor[1], finalFogColor[2]);
-
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, idTexSandC);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexSandN);
 
-	Program.SendUniform("useNormalMap", 1);
+	Program.SendUniform("useNormalMap", isNormalOn);
 
 	Program.SendUniform("fogDensity", 0.3);
 	Program.SendUniform("materialAmbient", 0.1f, 0.1f, 0.1f);
@@ -924,6 +923,7 @@ void renderScene(mat4 &matrixView, float time, bool isLightOn)
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, idTexNone);
 
+	ProgramTerrain.SendUniform("fogColour2", finalFogColor[0], finalFogColor[1], finalFogColor[2]);
 	ProgramTerrain.SendUniform("useNormalMap", 0);
 	ProgramTerrain.SendUniform("useShadowMap", 0);
 	ProgramTerrain.SendUniform("fogDensity", 0.3);
@@ -1380,6 +1380,12 @@ void onKeyUp(unsigned char key, int x, int y)
 	case '2':
 		animationMode++;
 		if (animationMode > 2) animationMode = 0;
+		break;
+	case '3':
+		isNormalOn = true;
+		break;
+	case '4':
+		isNormalOn = false;
 		break;
 	}
 }

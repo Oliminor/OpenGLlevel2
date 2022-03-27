@@ -185,8 +185,8 @@ void main(void)
 
 	outColor *= texture(texture0, texCoord0 * vec2(scaleX, scaleY));
 
+	outColor.rgb += vec3(finalColor) * materialDiffuse.rgb; // Rim light
+	if (useShadowMap == 1) outColor *= shadow; // Shadow
 	outColor = mix(vec4(fogColour, 1), outColor, fogFactor); // Fog
 	outColor += mix(vec4(fogColour2 ,1), outColor, fogFactor2); // Fog
-	if (useShadowMap == 1) outColor *= shadow; // Shadow
-	outColor.rgb += vec3(finalColor) * materialDiffuse.rgb; // Rim light
 }
